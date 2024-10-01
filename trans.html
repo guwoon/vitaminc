@@ -13,7 +13,7 @@
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
             height: 100vh;
         }
         .language-section {
@@ -22,7 +22,7 @@
             overflow: hidden;
         }
         .language-title {
-            font-size: 2em;
+            font-size: 3em; /* 폰트 크기를 2배로 증가 */
             font-weight: bold;
             text-align: center;
             background-color: #f0f0f0;
@@ -31,14 +31,14 @@
         }
         .translations {
             padding: 10px;
-            height: calc(100% - 60px);
+            height: calc(100% - 80px);
             overflow: hidden;
             display: flex;
-            flex-direction: column;
+            flex-direction: column-reverse; /* 역순으로 표시 */
             justify-content: flex-start;
         }
         .translation {
-            font-size: 1.5em;
+            font-size: 3em; /* 폰트 크기를 2배로 증가 */
             margin-bottom: 10px;
         }
         .translation.newest {
@@ -49,7 +49,7 @@
             top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 1.5em;
+            font-size: 2em;
             background-color: rgba(255, 255, 255, 0.7);
             padding: 10px 20px;
             border-radius: 10px;
@@ -75,6 +75,8 @@
     <script>
         let recognition;
         let languages = {
+            'ko': '한국어',
+            'en': '영어',
             'fr': '프랑스어',
             'zh-CN': '중국어(간체)',
             'id': '인도네시아어',
@@ -109,17 +111,45 @@
             recognition.start();
         }
 
-        async function translateText(text) {
-            for (let [langCode, langName] of Object.entries(languages)) {
-                try {
+        let translationQueue = [];
+
+        function translateText(text) {
+            translationQueue.push(text);
+
+            if (translationQueue.length === 1) {
+                processTranslationQueue();
+            }
+        }
+
+        async function processTranslationQueue() {
+            while (translationQueue.length > 0) {
+                let text = translationQueue[0];
+
+                let promises = [];
+                for (let [langCode, langName] of Object.entries(languages)) {
+                    promises.push(translateSingleText(text, langCode, langName));
+                }
+
+                await Promise.all(promises);
+
+                translationQueue.shift();
+            }
+        }
+
+        async function translateSingleText(text, langCode, langName) {
+            try {
+                let translatedText;
+                if (langCode === 'ko') {
+                    // 원어인 한국어는 번역하지 않고 그대로 표시
+                    translatedText = text;
+                } else {
                     let response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${langCode}`);
                     let data = await response.json();
-                    let translatedText = data.responseData.translatedText;
-
-                    appendTranslation(langName, translatedText);
-                } catch (error) {
-                    console.error('번역 오류:', error);
+                    translatedText = data.responseData.translatedText;
                 }
+                appendTranslation(langName, translatedText);
+            } catch (error) {
+                console.error('번역 오류:', error);
             }
         }
 
@@ -148,7 +178,7 @@
 
             let translationsDiv = document.getElementById(`translations-${langName}`);
 
-            // 새로운 번역 추가 (최신 항목이 위로 오도록)
+            // 새로운 번역 추가 (최신 항목이 상단에 오도록)
             let p = document.createElement('div');
             p.className = 'translation newest';
             p.innerText = translatedText;
