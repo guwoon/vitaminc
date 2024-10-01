@@ -4,21 +4,42 @@
     <meta charset="UTF-8">
     <title>실시간 다국어 자막</title>
     <style>
-        body { font-family: Arial, sans-serif; }
+        body { font-family: Arial, sans-serif; margin: 20px; }
         #original { font-size: 1.5em; margin-bottom: 20px; }
-        .translation { font-size: 1.2em; margin-top: 10px; }
+        .language-section {
+            margin-bottom: 20px;
+        }
+        .language-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .translations {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
         button { padding: 10px 20px; font-size: 1em; }
-        #translations { margin-top: 20px; }
     </style>
 </head>
 <body>
     <h1>실시간 다국어 자막</h1>
     <button onclick="startRecognition()">음성 인식 시작</button>
     <div id="original">원본 텍스트: </div>
-    <div id="translations"></div>
+
+    <div id="translations-container"></div>
 
     <script>
         let recognition;
+        let languages = {
+            'fr': '프랑스어',
+            'zh-CN': '중국어(간체)',
+            'id': '인도네시아어',
+            'mn': '몽골어'
+        };
+
         function startRecognition() {
             if (!('webkitSpeechRecognition' in window)) {
                 alert('이 브라우저는 음성 인식을 지원하지 않습니다.');
@@ -44,29 +65,55 @@
         }
 
         async function translateText(text) {
-            const languages = {
-                'fr': '프랑스어',
-                'zh-CN': '중국어(간체)',
-                'id': '인도네시아어',
-                'mn': '몽골어'
-            };
-
-            const translationsDiv = document.getElementById('translations');
-            translationsDiv.innerHTML = '';
-
             for (let [langCode, langName] of Object.entries(languages)) {
                 try {
                     let response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${langCode}`);
                     let data = await response.json();
                     let translatedText = data.responseData.translatedText;
 
-                    let div = document.createElement('div');
-                    div.className = 'translation';
-                    div.innerText = `${langName}: ${translatedText}`;
-                    translationsDiv.appendChild(div);
+                    appendTranslation(langName, translatedText);
                 } catch (error) {
                     console.error('번역 오류:', error);
                 }
+            }
+        }
+
+        function appendTranslation(langName, translatedText) {
+            let container = document.getElementById('translations-container');
+            let languageSection = document.getElementById(`lang-${langName}`);
+
+            if (!languageSection) {
+                // 언어 섹션 생성
+                languageSection = document.createElement('div');
+                languageSection.className = 'language-section';
+                languageSection.id = `lang-${langName}`;
+
+                let title = document.createElement('div');
+                title.className = 'language-title';
+                title.innerText = langName;
+
+                let translationsDiv = document.createElement('div');
+                translationsDiv.className = 'translations';
+                translationsDiv.id = `translations-${langName}`;
+
+                languageSection.appendChild(title);
+                languageSection.appendChild(translationsDiv);
+                container.appendChild(languageSection);
+            }
+
+            let translationsDiv = document.getElementById(`translations-${langName}`);
+
+            // 새로운 번역 추가
+            let p = document.createElement('p');
+            p.innerText = translatedText;
+            translationsDiv.appendChild(p);
+
+            // 스크롤을 맨 아래로
+            translationsDiv.scrollTop = translationsDiv.scrollHeight;
+
+            // 최대 표시 줄 수 제한 (예: 10줄)
+            if (translationsDiv.childElementCount > 10) {
+                translationsDiv.removeChild(translationsDiv.firstChild);
             }
         }
     </script>
