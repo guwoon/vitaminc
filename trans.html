@@ -4,88 +4,72 @@
     <meta charset="UTF-8">
     <title>실시간 다국어 자막</title>
     <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-        }
         body {
+            margin: 0;
+            padding: 0;
             font-family: Arial, sans-serif;
-            display: grid;
-            grid-template-rows: auto 1fr;
-            grid-template-columns: 1fr;
-            grid-template-areas:
-                "header"
-                "content";
+            overflow: hidden;
         }
-        h1 {
-            grid-area: header;
-            text-align: center;
-            margin: 10px 0;
-        }
-        #content {
-            grid-area: content;
+        .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
             grid-template-rows: 1fr 1fr;
-            gap: 10px;
-            padding: 10px;
-            box-sizing: border-box;
+            height: 100vh;
         }
         .language-section {
             border: 1px solid #ccc;
-            padding: 10px;
             box-sizing: border-box;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            background-color: #f9f9f9;
         }
         .language-title {
-            font-size: 1.2em;
+            font-size: 2em;
             font-weight: bold;
-            margin-bottom: 10px;
             text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 10px;
         }
         .translations {
-            flex: 1;
+            padding: 10px;
+            height: calc(100% - 60px);
             overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
         }
-        .translation-line {
-            margin-bottom: 5px;
+        .translation {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+        .translation.newest {
+            font-weight: bold;
+        }
+        #original {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.5em;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            z-index: 1;
         }
         button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             padding: 10px 20px;
             font-size: 1em;
-            position: fixed;
-            top: 10px;
-            left: 10px;
+            z-index: 1;
         }
     </style>
 </head>
 <body>
-    <h1>실시간 다국어 자막</h1>
+    <div id="original">원본 텍스트: </div>
     <button onclick="startRecognition()">음성 인식 시작</button>
-
-    <div id="content">
-        <div class="language-section" id="lang-fr">
-            <div class="language-title">프랑스어</div>
-            <div class="translations" id="translations-fr"></div>
-        </div>
-        <div class="language-section" id="lang-zh-CN">
-            <div class="language-title">중국어(간체)</div>
-            <div class="translations" id="translations-zh-CN"></div>
-        </div>
-        <div class="language-section" id="lang-id">
-            <div class="language-title">인도네시아어</div>
-            <div class="translations" id="translations-id"></div>
-        </div>
-        <div class="language-section" id="lang-mn">
-            <div class="language-title">몽골어</div>
-            <div class="translations" id="translations-mn"></div>
-        </div>
+    <div class="container" id="translations-container">
+        <!-- 언어별 섹션이 여기에 추가됩니다 -->
     </div>
 
     <script>
@@ -97,13 +81,6 @@
             'mn': '몽골어'
         };
 
-        // 각 언어별로 최근 3문장을 저장할 객체 초기화
-        let translationHistory = {};
-
-        for (let langCode in languages) {
-            translationHistory[langCode] = [];
-        }
-
         function startRecognition() {
             if (!('webkitSpeechRecognition' in window)) {
                 alert('이 브라우저는 음성 인식을 지원하지 않습니다.');
@@ -113,10 +90,15 @@
             recognition = new webkitSpeechRecognition();
             recognition.lang = 'ko-KR'; // 인식 언어: 한국어
             recognition.continuous = true;
-            recognition.interimResults = false;
+            recognition.interimResults = true; // 중간 결과 받기
 
             recognition.onresult = function(event) {
-                let transcript = event.results[event.results.length - 1][0].transcript.trim();
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
+                }
+                transcript = transcript.trim();
+                document.getElementById('original').innerText = '원본 텍스트: ' + transcript;
                 translateText(transcript);
             };
 
@@ -128,36 +110,60 @@
         }
 
         async function translateText(text) {
-            for (let langCode of Object.keys(languages)) {
+            for (let [langCode, langName] of Object.entries(languages)) {
                 try {
                     let response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${langCode}`);
                     let data = await response.json();
                     let translatedText = data.responseData.translatedText;
 
-                    updateTranslation(langCode, translatedText);
+                    appendTranslation(langName, translatedText);
                 } catch (error) {
                     console.error('번역 오류:', error);
                 }
             }
         }
 
-        function updateTranslation(langCode, translatedText) {
-            // 번역 기록 업데이트
-            let history = translationHistory[langCode];
-            history.unshift(translatedText); // 새로운 문장을 앞에 추가
-            if (history.length > 3) {
-                history.pop(); // 가장 오래된 문장 제거
+        function appendTranslation(langName, translatedText) {
+            let container = document.getElementById('translations-container');
+            let languageSection = document.getElementById(`lang-${langName}`);
+
+            if (!languageSection) {
+                // 언어 섹션 생성
+                languageSection = document.createElement('div');
+                languageSection.className = 'language-section';
+                languageSection.id = `lang-${langName}`;
+
+                let title = document.createElement('div');
+                title.className = 'language-title';
+                title.innerText = langName;
+
+                let translationsDiv = document.createElement('div');
+                translationsDiv.className = 'translations';
+                translationsDiv.id = `translations-${langName}`;
+
+                languageSection.appendChild(title);
+                languageSection.appendChild(translationsDiv);
+                container.appendChild(languageSection);
             }
 
-            // 화면에 번역 내용 업데이트
-            let translationsDiv = document.getElementById(`translations-${langCode}`);
-            translationsDiv.innerHTML = ''; // 기존 내용 제거
+            let translationsDiv = document.getElementById(`translations-${langName}`);
 
-            for (let sentence of history) {
-                let p = document.createElement('div');
-                p.className = 'translation-line';
-                p.innerText = sentence;
-                translationsDiv.appendChild(p);
+            // 새로운 번역 추가 (최신 항목이 위로 오도록)
+            let p = document.createElement('div');
+            p.className = 'translation newest';
+            p.innerText = translatedText;
+
+            // 이전에 'newest' 클래스를 가진 요소의 클래스를 제거
+            let previousNewest = translationsDiv.querySelector('.translation.newest');
+            if (previousNewest) {
+                previousNewest.classList.remove('newest');
+            }
+
+            translationsDiv.insertBefore(p, translationsDiv.firstChild);
+
+            // 최대 표시 줄 수 제한 (예: 3줄)
+            while (translationsDiv.childElementCount > 3) {
+                translationsDiv.removeChild(translationsDiv.lastChild);
             }
         }
     </script>
