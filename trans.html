@@ -13,7 +13,7 @@
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr 1fr;
+            grid-template-rows: repeat(3, 1fr);
             height: 100vh;
         }
         .language-section {
@@ -54,6 +54,8 @@
             padding: 10px 20px;
             border-radius: 10px;
             z-index: 1;
+            width: 90%; /* 공간 확보 */
+            text-align: center;
         }
         button {
             position: absolute;
@@ -75,7 +77,6 @@
     <script>
         let recognition;
         let languages = {
-            'ko': '한국어',
             'en': '영어',
             'fr': '프랑스어',
             'zh-CN': '중국어(간체)',
@@ -97,11 +98,13 @@
             recognition.onresult = function(event) {
                 let transcript = '';
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    transcript += event.results[i][0].transcript;
+                    let result = event.results[i];
+                    if (result.isFinal) {
+                        transcript += result[0].transcript;
+                        processTranscript(transcript.trim());
+                        transcript = '';
+                    }
                 }
-                transcript = transcript.trim();
-                document.getElementById('original').innerText = '원본 텍스트: ' + transcript;
-                translateText(transcript);
             };
 
             recognition.onerror = function(event) {
@@ -111,42 +114,24 @@
             recognition.start();
         }
 
-        let translationQueue = [];
-
-        function translateText(text) {
-            translationQueue.push(text);
-
-            if (translationQueue.length === 1) {
-                processTranslationQueue();
-            }
+        function processTranscript(transcript) {
+            document.getElementById('original').innerText = '원본 텍스트: ' + transcript;
+            translateText(transcript);
         }
 
-        async function processTranslationQueue() {
-            while (translationQueue.length > 0) {
-                let text = translationQueue[0];
-
-                let promises = [];
-                for (let [langCode, langName] of Object.entries(languages)) {
-                    promises.push(translateSingleText(text, langCode, langName));
-                }
-
-                await Promise.all(promises);
-
-                translationQueue.shift();
+        async function translateText(text) {
+            let promises = [];
+            for (let [langCode, langName] of Object.entries(languages)) {
+                promises.push(translateSingleText(text, langCode, langName));
             }
+            await Promise.all(promises);
         }
 
         async function translateSingleText(text, langCode, langName) {
             try {
-                let translatedText;
-                if (langCode === 'ko') {
-                    // 원어인 한국어는 번역하지 않고 그대로 표시
-                    translatedText = text;
-                } else {
-                    let response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${langCode}`);
-                    let data = await response.json();
-                    translatedText = data.responseData.translatedText;
-                }
+                let response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${langCode}`);
+                let data = await response.json();
+                let translatedText = data.responseData.translatedText;
                 appendTranslation(langName, translatedText);
             } catch (error) {
                 console.error('번역 오류:', error);
