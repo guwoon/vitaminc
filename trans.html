@@ -62,17 +62,23 @@
         button {
             position: absolute;
             top: 10px;
-            right: 10px;
             padding: 10px 20px;
             font-size: 1em;
             z-index: 1;
+        }
+        /* 각 버튼의 위치를 개별적으로 지정 */
+        #startButton {
+            right: 130px;
+        }
+        #stopButton {
+            right: 10px;
         }
     </style>
 </head>
 <body>
     <div id="original">원본 텍스트:</div>
-    <button onclick="startRecording()">음성 인식 시작</button>
-    <button onclick="stopRecording()">음성 인식 종료</button>
+    <button id="startButton" onclick="startRecording()">음성 인식 시작</button>
+    <button id="stopButton" onclick="stopRecording()">음성 인식 종료</button>
     <div class="container" id="translations-container">
         <!-- 언어별 섹션이 여기에 추가됩니다 -->
     </div>
