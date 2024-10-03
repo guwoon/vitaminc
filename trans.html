@@ -22,7 +22,7 @@
             overflow: hidden;
         }
         .language-title {
-            font-size: 1.5em; /* 폰트 크기 조정 */
+            font-size: 1.5em;
             font-weight: bold;
             text-align: center;
             background-color: #f0f0f0;
@@ -34,11 +34,11 @@
             height: calc(100% - 80px);
             overflow: hidden;
             display: flex;
-            flex-direction: column-reverse; /* 역순으로 표시 */
+            flex-direction: column-reverse;
             justify-content: flex-start;
         }
         .translation {
-            font-size: 1.5em; /* 폰트 크기 조정 */
+            font-size: 1.5em;
             margin-bottom: 10px;
         }
         .translation.newest {
@@ -49,15 +49,15 @@
             top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 1em; /* 폰트 크기 조정 */
+            font-size: 1em;
             background-color: rgba(255, 255, 255, 0.7);
             padding: 10px 20px;
             border-radius: 10px;
             z-index: 1;
-            width: 90%; /* 공간 확보 */
+            width: 90%;
             text-align: center;
             overflow-y: auto;
-            max-height: 15%; /* 원본 텍스트 공간 확보 */
+            max-height: 15%;
         }
         button {
             position: absolute;
@@ -76,9 +76,6 @@
     <div class="container" id="translations-container">
         <!-- 언어별 섹션이 여기에 추가됩니다 -->
     </div>
-
-    <!-- 필요한 스크립트 추가 -->
-    <!-- MediaRecorder를 지원하지 않는 브라우저를 위한 Polyfill이 필요할 수 있습니다 -->
 
     <script>
         let mediaRecorder;
@@ -100,29 +97,6 @@
                     mediaRecorder.addEventListener('dataavailable', event => {
                         audioChunks.push(event.data);
                     });
-
-                    mediaRecorder.addEventListener('stop', () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus' });
-                        audioChunks = []; // 다음 녹음을 위해 배열 초기화
-
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const audioBase64 = reader.result.split(',')[1];
-                            fetch('https://us-central1-vitaminc-d64b9.cloudfunctions.net/speechToText', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ audioContent: audioBase64 }),
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    processTranscriptAndTranslations(data);
-                                })
-                                .catch(error => console.error('Error:', error));
-                        };
-                        reader.readAsDataURL(audioBlob);
-                    });
                 })
                 .catch(error => console.error('마이크 접근 오류:', error));
         }
@@ -130,6 +104,28 @@
         function stopRecording() {
             if (mediaRecorder) {
                 mediaRecorder.stop();
+                mediaRecorder.addEventListener('stop', () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus' });
+                    audioChunks = [];
+
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const audioBase64 = reader.result.split(',')[1];
+                        fetch('https://us-central1-vitaminc-d64b9.cloudfunctions.net/speechToText', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ audioContent: audioBase64 }),
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                processTranscriptAndTranslations(data);
+                            })
+                            .catch(error => console.error('Error:', error));
+                    };
+                    reader.readAsDataURL(audioBlob);
+                });
             }
         }
 
@@ -177,12 +173,12 @@
 
             let translationsDiv = document.getElementById(`translations-${langName}`);
 
-            // 새로운 번역 추가 (최신 항목이 상단에 오도록)
+            // 새로운 번역 추가
             let p = document.createElement('div');
             p.className = 'translation newest';
             p.innerText = translatedText;
 
-            // 이전에 'newest' 클래스를 가진 요소의 클래스를 제거
+            // 이전 'newest' 클래스 제거
             let previousNewest = translationsDiv.querySelector('.translation.newest');
             if (previousNewest) {
                 previousNewest.classList.remove('newest');
@@ -190,7 +186,7 @@
 
             translationsDiv.insertBefore(p, translationsDiv.firstChild);
 
-            // 최대 표시 줄 수 제한 (예: 3줄)
+            // 최대 표시 줄 수 제한
             while (translationsDiv.childElementCount > 3) {
                 translationsDiv.removeChild(translationsDiv.lastChild);
             }
