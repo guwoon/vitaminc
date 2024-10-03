@@ -22,7 +22,7 @@
             overflow: hidden;
         }
         .language-title {
-            font-size: 3em; /* 폰트 크기를 2배로 증가 */
+            font-size: 1.5em; /* 폰트 크기 조정 */
             font-weight: bold;
             text-align: center;
             background-color: #f0f0f0;
@@ -38,7 +38,7 @@
             justify-content: flex-start;
         }
         .translation {
-            font-size: 3em; /* 폰트 크기를 2배로 증가 */
+            font-size: 1.5em; /* 폰트 크기 조정 */
             margin-bottom: 10px;
         }
         .translation.newest {
@@ -49,13 +49,15 @@
             top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 2em;
+            font-size: 1em; /* 폰트 크기 조정 */
             background-color: rgba(255, 255, 255, 0.7);
             padding: 10px 20px;
             border-radius: 10px;
             z-index: 1;
             width: 90%; /* 공간 확보 */
             text-align: center;
+            overflow-y: auto;
+            max-height: 15%; /* 원본 텍스트 공간 확보 */
         }
         button {
             position: absolute;
@@ -68,15 +70,20 @@
     </style>
 </head>
 <body>
-    <div id="original">원본 텍스트: </div>
-    <button onclick="startRecognition()">음성 인식 시작</button>
+    <div id="original">원본 텍스트:</div>
+    <button onclick="startRecording()">음성 인식 시작</button>
+    <button onclick="stopRecording()">음성 인식 종료</button>
     <div class="container" id="translations-container">
         <!-- 언어별 섹션이 여기에 추가됩니다 -->
     </div>
 
+    <!-- 필요한 스크립트 추가 -->
+    <!-- MediaRecorder를 지원하지 않는 브라우저를 위한 Polyfill이 필요할 수 있습니다 -->
+
     <script>
-        let recognition;
-        let languages = {
+        let mediaRecorder;
+        let audioChunks = [];
+        const languages = {
             'en': '영어',
             'fr': '프랑스어',
             'zh-CN': '중국어(간체)',
@@ -84,57 +91,64 @@
             'mn': '몽골어'
         };
 
-        function startRecognition() {
-            if (!('webkitSpeechRecognition' in window)) {
-                alert('이 브라우저는 음성 인식을 지원하지 않습니다.');
-                return;
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+
+                    mediaRecorder.addEventListener('dataavailable', event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus' });
+                        audioChunks = []; // 다음 녹음을 위해 배열 초기화
+
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const audioBase64 = reader.result.split(',')[1];
+                            fetch('https://us-central1-vitaminc-d64b9.cloudfunctions.net/speechToText', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ audioContent: audioBase64 }),
+                            })
+                                .then(response => response.json())
+                                .then(data => {
+                                    processTranscriptAndTranslations(data);
+                                })
+                                .catch(error => console.error('Error:', error));
+                        };
+                        reader.readAsDataURL(audioBlob);
+                    });
+                })
+                .catch(error => console.error('마이크 접근 오류:', error));
+        }
+
+        function stopRecording() {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+            }
+        }
+
+        function processTranscriptAndTranslations(data) {
+            const { transcription, translations } = data;
+
+            // 원본 텍스트 표시
+            const originalDiv = document.getElementById('original');
+            if (originalDiv) {
+                const p = document.createElement('p');
+                p.innerText = transcription;
+                originalDiv.appendChild(p);
+                originalDiv.scrollTop = originalDiv.scrollHeight;
             }
 
-            recognition = new webkitSpeechRecognition();
-            recognition.lang = 'ko-KR'; // 인식 언어: 한국어
-            recognition.continuous = true;
-            recognition.interimResults = true; // 중간 결과 받기
-
-            recognition.onresult = function(event) {
-                let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    let result = event.results[i];
-                    if (result.isFinal) {
-                        transcript += result[0].transcript;
-                        processTranscript(transcript.trim());
-                        transcript = '';
-                    }
-                }
-            };
-
-            recognition.onerror = function(event) {
-                console.error('음성 인식 오류:', event.error);
-            };
-
-            recognition.start();
-        }
-
-        function processTranscript(transcript) {
-            document.getElementById('original').innerText = '원본 텍스트: ' + transcript;
-            translateText(transcript);
-        }
-
-        async function translateText(text) {
-            let promises = [];
-            for (let [langCode, langName] of Object.entries(languages)) {
-                promises.push(translateSingleText(text, langCode, langName));
-            }
-            await Promise.all(promises);
-        }
-
-        async function translateSingleText(text, langCode, langName) {
-            try {
-                let response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ko|${langCode}`);
-                let data = await response.json();
-                let translatedText = data.responseData.translatedText;
+            // 번역 결과 표시
+            for (const [langCode, translatedText] of Object.entries(translations)) {
+                const langName = languages[langCode];
                 appendTranslation(langName, translatedText);
-            } catch (error) {
-                console.error('번역 오류:', error);
             }
         }
 
