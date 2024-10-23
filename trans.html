@@ -117,7 +117,7 @@
                     const reader = new FileReader();
                     reader.onloadend = () => {
                         const audioBase64 = reader.result.split(',')[1];
-                        fetch('https://us-central1-vitaminc-d64b9.cloudfunctions.net/speechToText', {
+                        fetch('https://us-central1-vitaminc-907fb.cloudfunctions.net/speechToText', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
